@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MemoryBox</title>
+
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="logo.svg" />
+
+    <!-- App JS -->
+    <script type="module" src="script.js" defer></script>
+
+    <!-- Service Worker -->
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker
+                .register("sw.js")
+                .then(() => console.log("✅ Service Worker registered"))
+                .catch(err => console.log("❌ Service Worker failed", err));
+        }
+    </script>
+
+    <!-- Tailwind (utility only) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!-- HEIC -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
+
+    <style>
+        img,
+        video {
+            -webkit-touch-callout: none;
+            -webkit-user-drag: none;
+            user-select: none;
+        }
+
+        /* ======================================================
+       BASE
+    ====================================================== */
+
+        body {
+            background: url("https://i.pinimg.com/736x/71/84/73/7184732aae4c73b30f6ec13ffc9546b7.jpg") no-repeat center center fixed;
+            background-size: cover;
+        }
+
+        html,
+        body {
+            height: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(236, 72, 153, 0.75);
+            border-radius: 9999px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(236, 72, 153, 0.75) transparent;
+        }
+
+        /* ======================================================
+       GALLERY WRAPPER
+    ====================================================== */
+
+        #gallery {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-bottom: 4rem;
+        }
+
+        #gallery h2 {
+            margin: 2.5rem 0 1rem 0.25rem;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 600;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
+
+        /* ======================================================
+       GALLERY SECTION (MOBILE → DESKTOP)
+    ====================================================== */
+
+        .gallery-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        @media (min-width: 420px) {
+            .gallery-section {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .media-wrapper {
+                max-width: 412px !important;
+                max-height: 915px !important;
+            }
+
+            .modal-media {
+                max-width: 412px !important;
+                max-height: 915px !important;
+
+            }
+        }
+
+        @media (min-width: 640px) {
+            .gallery-section {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 1rem;
+            }
+        }
+
+        /* Desktop masonry only */
+        @media (min-width: 1024px) {
+            .gallery-section {
+                display: block;
+                columns: 4;
+                column-gap: 1.25rem;
+            }
+
+            .gallery-section .image-card {
+                break-inside: avoid;
+                margin-bottom: 1.25rem;
+            }
+        }
+
+        /* ======================================================
+       IMAGE / VIDEO CARD
+    ====================================================== */
+
+        .image-card {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border-radius: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .image-card img,
+        .image-card video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        @media (hover: hover) {
+
+            .image-card:hover img,
+            .image-card:hover video {
+                transform: scale(1.015);
+            }
+        }
+
+        /* ======================================================
+       TIMESTAMP
+    ====================================================== */
+
+        .timestamp {
+            position: absolute;
+            bottom: 6px;
+            right: 6px;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            background: rgba(0, 0, 0, 0.65);
+            color: white;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+        }
+
+        /* ======================================================
+       PRIVACY MODE
+    ====================================================== */
+
+        .privacy-on .image-card img,
+        .privacy-on .image-card video {
+            filter: blur(18px);
+            transform: scale(1.08);
+            transition:
+                filter 0.35s cubic-bezier(.4, 0, .2, 1),
+                transform 0.35s cubic-bezier(.4, 0, .2, 1);
+        }
+
+        /* Overlay icon */
+        .image-card::after {
+            content: '🧿';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            color: white;
+            background: rgba(0, 0, 0, 0.25);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        .privacy-on .image-card::after {
+            opacity: 1;
+        }
+
+        /* ======================================================
+       MODAL
+    ====================================================== */
+
+        #imageModal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(4px);
+            z-index: 99990;
+            padding: 1.25rem;
+        }
+
+        #imageModal.open {
+            display: flex;
+        }
+
+        .media-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-width: 90vw;
+            max-height: 85vh;
+            overflow: visible;
+            -webkit-user-select: none;
+            user-select: none;
+            /* IMPORTANT */
+        }
+
+        .modal-media {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transition: transform 0.25s ease;
+            -webkit-user-drag: none;
+            -webkit-touch-callout: none;
+            user-select: none;
+            pointer-events: auto;
+        }
+
+        /* ======================================================
+       FLOATING BUTTONS
+    ====================================================== */
+
+        #uploadSection {
+            position: fixed;
+            bottom: 5.25rem;
+            right: 1.25rem;
+            z-index: 99999;
+        }
+
+        #scrollTopSection {
+            position: fixed;
+            bottom: 9.5rem;
+            right: 1.5rem;
+            z-index: 99999;
+        }
+
+        #scrollTopButton {
+            width: 48px;
+            height: 48px;
+            border-radius: 9999px;
+            background: #ec4899;
+            color: white;
+            font-size: 1.25rem;
+            border: none;
+            cursor: pointer;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        #scrollTopButton.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        #scrollTopButton:hover {
+            background: #db2777;
+        }
+
+        /* ===== Filter animation ===== */
+        .image-card {
+            transition:
+                opacity 0.25s ease,
+                transform 0.25s ease;
+        }
+
+        .image-card.filter-hide {
+            opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
+        }
+
+        /* === Wrapper: prevents overflow === */
+        .filter-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            margin-bottom: 1rem;
+        }
+
+        .filter-wrapper::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* === Bar === */
+        .filter-bar {
+            position: relative;
+            display: flex;
+            gap: 0.5rem;
+            width: max-content;
+            padding-bottom: 0.5rem;
+        }
+
+        /* === Buttons === */
+        .filter-btn {
+            white-space: nowrap;
+            padding: 0.45rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 500;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .filter-btn.active {
+            background: #ec4899;
+            color: white;
+        }
+
+        /* === Underline === */
+        .filter-underline {
+            position: absolute;
+            bottom: 0;
+            height: 3px;
+            background: #ec4899;
+            border-radius: 9999px;
+            transition:
+                transform 0.25s cubic-bezier(.4, 0, .2, 1),
+                width 0.25s cubic-bezier(.4, 0, .2, 1);
+        }
+
+        /* Global safety net */
+        body {
+            overflow-x: hidden;
+        }
+
+        #emptyFolderPlaceholder {
+            display: none;
+        }
+
+        .hidden-card {
+            display: none !important;
+        }
+
+        /* ========================================
+   IMAGE CARD BASE
+======================================== */
+        .image-card {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+            transition:
+                transform 450ms cubic-bezier(.2, .8, .2, 1),
+                opacity 320ms ease;
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+        }
+
+        /* ========================================
+   FADE OUT STATE
+======================================== */
+        .image-card.fade-out {
+            opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
+        }
+
+        /* ========================================
+   FADE IN STATE
+======================================== */
+        .image-card.fade-in {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* ========================================
+   OPTIONAL: SOFT MOTION BLUR DURING MOVE
+   (adds very premium feel)
+======================================== */
+        .image-card.moving {
+            filter: blur(2px);
+        }
+
+        /* ========================================
+   GALLERY MICRO TRANSITION
+======================================== */
+        #gallery {
+            transition: opacity 200ms ease;
+        }
+
+        /* ========================================
+   FILTER BUTTON POLISH
+======================================== */
+        .filter-btn {
+            transition:
+                background 200ms ease,
+                color 200ms ease,
+                transform 150ms ease;
+        }
+
+        .filter-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* ========================================
+   UNDERLINE ANIMATION
+======================================== */
+        .filter-underline {
+            position: absolute;
+            bottom: 0;
+            height: 3px;
+            background: #ec4899;
+            border-radius: 9999px;
+            transition:
+                transform 300ms cubic-bezier(.4, 0, .2, 1),
+                width 300ms cubic-bezier(.4, 0, .2, 1);
+        }
+
+        /* ========================================
+   SMOOTH SCROLL FILTER BAR
+======================================== */
+        .filter-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .filter-wrapper::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* ========================================
+   REDUCE MOTION (Accessibility)
+======================================== */
+        @media (prefers-reduced-motion: reduce) {
+
+            .image-card,
+            .filter-underline,
+            .filter-btn {
+                transition: none !important;
+            }
+        }
+
+        .grid-selector {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .grid-selector button {
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 14px;
+            transition: all 200ms ease;
+        }
+
+        .grid-selector button.active {
+            background: #ec4899;
+        }
+
+        #gallery {
+            display: grid;
+            gap: 8px;
+        }
+
+        .image-card.selected {
+            outline: 3px solid #ec4899;
+            transform: scale(0.96);
+        }
+
+        .selection-toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(6px);
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 99999;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .selection-toolbar.active {
+            transform: translateY(0);
+        }
+
+        #selectionBar.active {
+            transform: translateY(0);
+        }
+
+        .image-card.selected {
+            outline: 3px solid #ec4899;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen text-gray-800 font-sans">
+
+    <!-- TOAST -->
+    <div id="toast"
+        class="fixed top-4 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity duration-300 z-50">
+    </div>
+
+    <!-- AUTH -->
+    <section id="authSection" class="flex flex-col items-center justify-center min-h-screen px-4">
+        <div
+            class="bg-white/40 backdrop-blur-xl p-6 rounded-2xl shadow-lg w-full max-w-md border border-white/30 text-gray-900">
+            <h1 id="authTitle" class="text-2xl font-bold text-pink-700 mb-4 text-center">
+                Login
+            </h1>
+
+            <div class="space-y-3">
+                <input id="email" type="email" placeholder="Email"
+                    class="w-full px-4 py-2 rounded-xl border border-pink-300 bg-white/60 focus:outline-none focus:ring-2 focus:ring-pink-400" />
+
+                <div class="relative">
+                    <input id="password" type="password" placeholder="Password"
+                        class="w-full px-4 py-2 pr-12 rounded-xl border border-pink-300 bg-white/60 focus:outline-none focus:ring-2 focus:ring-pink-400" />
+                    <button id="togglePassword" type="button"
+                        class="absolute inset-y-0 right-2 my-auto h-9 px-3 rounded-lg text-pink-700/80 hover:bg-pink-100 transition">
+                        👁️
+                    </button>
+                </div>
+
+                <button id="authButton"
+                    class="w-full bg-pink-500 hover:bg-pink-600 active:scale-95 text-white py-2 rounded-xl font-semibold transition shadow-md">
+                    Login
+                </button>
+            </div>
+
+            <p id="toggleAuth" class="text-sm mt-4 text-center text-pink-700 cursor-pointer">
+                Don't have an account? Sign up
+            </p>
+        </div>
+    </section>
+
+    <!-- APP -->
+    <main id="app" class="hidden pt-8 px-4 pb-24">
+        <div class="flex flex-col gap-4 max-w-5xl mx-auto">
+
+            <!-- Row 1 -->
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl sm:text-4xl font-extrabold text-white drop-shadow">
+                    Your Memories
+                </h1>
+
+                <div class="flex items-center gap-3">
+                    <button id="privacyToggle"
+                        class="w-10 h-10 bg-black/80 hover:bg-black text-white rounded-full shadow-md transition">
+                        👁️‍🗨️
+                    </button>
+
+                    <button id="profileMenu"
+                        class="w-10 h-10 bg-pink-500 hover:bg-pink-600 text-white rounded-full shadow-md transition">
+                        👤 </button>
+                    <div id="profileOptions"
+                        class="absolute right-0 mt-12 bg-white/90 backdrop-blur-md border border-pink-300 shadow-lg rounded-xl p-3 space-y-3 opacity-0 invisible pointer-events-none transition-all">
+                        <button id="signoutButton" class="w-full text-left px-3 py-2 rounded-xl hover:bg-pink-100"> Sign
+                            out </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2 -->
+            <div class="filter-wrapper overflow-x-auto">
+                <div class="filter-bar flex gap-4 min-w-max" id="filterBar">
+                    <button data-filter="all" class="filter-btn active">All</button>
+                    <button data-filter="image" class="filter-btn">Images</button>
+                    <button data-filter="video" class="filter-btn">Videos</button>
+                    <span class="filter-underline" id="filterUnderline"></span>
+                </div>
+            </div>
+        </div>
+
+
+        <section id="gallery"></section>
+        <div id="selectionBar"
+            class="fixed bottom-0 left-0 right-0 bg-white shadow-xl p-4 flex justify-between items-center transition-transform duration-300 z-[100000]">
+            <span id="selectedCount">0 selected</span>
+
+            <div class="flex gap-4">
+                <button id="shareSelected" class="px-4 py-2 bg-blue-500 text-white rounded-lg">
+                    Share
+                </button>
+
+                <button id="downloadSelected" class="px-4 py-2 bg-green-500 text-white rounded-lg">
+                    Download
+                </button>
+
+                <button id="cancelSelection" class="px-4 py-2 bg-gray-400 text-white rounded-lg">
+                    Cancel
+                </button>
+
+            </div>
+        </div>
+
+        <section id="scrollTopSection">
+            <button id="scrollTopButton">↑</button>
+        </section>
+
+        <section id="uploadSection">
+            <div id="uploadButton"
+                class="bg-pink-600 text-white shadow-xl w-14 h-14 rounded-full flex items-center justify-center hover:bg-pink-700 transition">
+                +
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL -->
+    <div id="imageModal">
+        <button id="prevBtn"
+            class="absolute left-3 top-1/2 -translate-y-1/2 z-50 bg-black/70 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl hover:bg-black transition">
+            ‹
+        </button>
+
+        <button id="nextBtn"
+            class="absolute right-3 top-1/2 -translate-y-1/2 z-50 bg-black/70 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl hover:bg-black transition">
+            ›
+        </button>
+
+        <div class="absolute top-4 right-4 z-50 flex gap-3">
+            <button id="downloadBtn"
+                class="px-4 py-2 rounded-xl bg-black/80 text-white text-sm hover:bg-black transition">
+                ⬇ Download
+            </button>
+            <button id="rotateBtn"
+                class="px-4 py-2 rounded-xl bg-black/80 text-white text-sm hover:bg-black transition">
+                R
+            </button>
+            <button id="shareBtn" class="px-4 py-2 rounded-xl bg-black/80 text-white text-sm hover:bg-black transition">
+                📤 Share
+            </button>
+
+        </div>
+
+        <div id="mediaWrapper" class="media-wrapper">
+            <img id="modalImage" draggable="false" class="modal-media" />
+            <video id="modalVideo" draggable="false" class="modal-media" controls></video>
+        </div>
+    </div>
+
+</body>
+
+</html>
