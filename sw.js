@@ -1,4 +1,4 @@
-const CACHE_NAME = "memorybox-v4.1.2";
+const CACHE_NAME = "memorybox-v4.1.3";
 
 const STATIC_CACHE = [
   "/",
@@ -40,50 +40,34 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
-
-  // 🟣 Handle Share Target POST
   if (request.method === "POST" && url.pathname === "/share-target") {
-    event.respondWith(handleShareTarget(request));
-    return;
-  }
-
-  // ❌ Ignore non-GET (prevents POST cache crash)
-  if (request.method !== "GET") return;
-
-  // ❌ Ignore cross-origin (prevents Supabase / CDN crash)
-  if (url.origin !== self.location.origin) return;
-
-  // 🟢 Network First for HTML
-  if (request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request)),
+      (async () => {
+        const formData = await request.formData();
+        const files = formData.getAll("media");
+
+        const clientsArr = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+
+        let client = clientsArr.find((c) => c.visibilityState === "visible");
+
+        if (!client) {
+          client = await self.clients.openWindow("/");
+        }
+
+        client.postMessage({
+          type: "SHARED_FILES",
+          files,
+        });
+
+        // Always return index.html instead of redirect
+        return caches.match("/index.html");
+      })(),
     );
     return;
   }
-
-  // 🔵 Cache First for static assets
-  event.respondWith(
-    caches.match(request).then((response) => {
-      return (
-        response ||
-        fetch(request).then((res) => {
-          if (res.ok && res.type === "basic") {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return res;
-        })
-      );
-    }),
-  );
 });
 
 /* ============================

@@ -8,7 +8,7 @@
   "display_override": ["standalone", "window-controls-overlay"],
   "background_color": "#ffc8dd",
   "theme_color": "#ffc8dd",
-  "orientation": "any",
+  "orientation": "portrait",
   "lang": "en",
   "categories": ["photo", "video", "lifestyle"],
   "prefer_related_applications": false,
