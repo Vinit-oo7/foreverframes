@@ -1,4 +1,4 @@
-const CACHE_NAME = "memorybox-v4.1.1";
+const CACHE_NAME = "memorybox-v4.0.3";
 
 const STATIC_CACHE = [
   "/",
