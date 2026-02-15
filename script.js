@@ -734,6 +734,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const files = event.data.files;
 
         if (files && files.length > 0) {
+          await supabase.auth.getUser();
           await handleFiles(files);
           showToast("📥 New memory received!");
         }
@@ -819,22 +820,26 @@ window.addEventListener("DOMContentLoaded", () => {
 
     updateSelectionUI();
   }
+
+  // --
   const mediaWrapper = document.getElementById("mediaWrapper");
 
-  mediaWrapper.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-  });
-
-  mediaWrapper.addEventListener("dragstart", (e) => {
-    e.preventDefault();
-  });
-
-  mediaWrapper.addEventListener(
-    "touchstart",
-    (e) => {
-      if (e.touches.length > 1) return;
+  if (mediaWrapper) {
+    mediaWrapper.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-    },
-    { passive: false },
-  );
+    });
+
+    mediaWrapper.addEventListener("dragstart", (e) => {
+      e.preventDefault();
+    });
+
+    mediaWrapper.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length > 1) return;
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+  }
 });

@@ -1,4 +1,4 @@
-const CACHE_NAME = "memorybox-v4.1.3";
+const CACHE_NAME = "memorybox-v5.0.0";
 
 const STATIC_CACHE = [
   "/",
@@ -40,33 +40,35 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // 🟣 Handle Share Target POST
   if (request.method === "POST" && url.pathname === "/share-target") {
-    event.respondWith(
-      (async () => {
-        const formData = await request.formData();
-        const files = formData.getAll("media");
-
-        const clientsArr = await self.clients.matchAll({
-          type: "window",
-          includeUncontrolled: true,
-        });
-
-        let client = clientsArr.find((c) => c.visibilityState === "visible");
-
-        if (!client) {
-          client = await self.clients.openWindow("/");
-        }
-
-        client.postMessage({
-          type: "SHARED_FILES",
-          files,
-        });
-
-        // Always return index.html instead of redirect
-        return caches.match("/index.html");
-      })(),
-    );
+    event.respondWith(handleShareTarget(request));
     return;
+  }
+
+  // 🟢 Handle ALL page navigations (VERY IMPORTANT)
+  if (request.mode === "navigate") {
+    event.respondWith(fetch(request).catch(() => caches.match("/index.html")));
+    return;
+  }
+
+  // 🔵 Cache-first for static files
+  if (request.method === "GET") {
+    event.respondWith(
+      caches.match(request).then((response) => {
+        return (
+          response ||
+          fetch(request).then((res) => {
+            if (res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            }
+            return res;
+          })
+        );
+      }),
+    );
   }
 });
 
