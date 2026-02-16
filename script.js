@@ -757,19 +757,19 @@ window.addEventListener("DOMContentLoaded", () => {
     RECEIVE SHARED FILES
 ============================ */
 
-  if (navigator.serviceWorker) {
-    navigator.serviceWorker.addEventListener("message", async (event) => {
-      if (event.data?.type === "SHARED_FILES") {
-        const files = event.data.files;
+  // if (navigator.serviceWorker) {
+  //   navigator.serviceWorker.addEventListener("message", async (event) => {
+  //     if (event.data?.type === "SHARED_FILES") {
+  //       const files = event.data.files;
 
-        if (files && files.length > 0) {
-          await supabase.auth.getUser();
-          await handleFiles(files);
-          showToast("📥 New memory received!");
-        }
-      }
-    });
-  }
+  //       if (files && files.length > 0) {
+  //         await supabase.auth.getUser();
+  //         await handleFiles(files);
+  //         showToast("📥 New memory received!");
+  //       }
+  //     }
+  //   });
+  // }
 
   function enableSelectionMode() {
     if (selectionMode) return;
@@ -840,15 +840,15 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   cancelBtn.addEventListener("click", exitSelectionMode);
 
-  function exitSelectionMode() {
-    selectedItems.clear();
+  // function exitSelectionMode() {
+  //   selectedItems.clear();
 
-    document
-      .querySelectorAll(".image-card.selected")
-      .forEach((card) => card.classList.remove("selected"));
+  //   document
+  //     .querySelectorAll(".image-card.selected")
+  //     .forEach((card) => card.classList.remove("selected"));
 
-    updateSelectionUI();
-  }
+  //   updateSelectionUI();
+  // }
 
   // --
   const mediaWrapper = document.getElementById("mediaWrapper");

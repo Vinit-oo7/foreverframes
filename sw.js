@@ -1,4 +1,4 @@
-const CACHE_NAME = "memorybox-v6.0.0";
+const CACHE_NAME = "memorybox-v6.0.1";
 
 const STATIC_CACHE = [
   "/",
@@ -48,7 +48,7 @@ self.addEventListener("fetch", (event) => {
 
   // 🟢 Handle navigations
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match("/index.html")));
+    event.respondWith(fetch(request).catch(() => caches.match("/")));
     return;
   }
 
