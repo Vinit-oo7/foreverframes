@@ -8,6 +8,11 @@
 
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="logo.svg" />
+    <script>
+        if (window.location.method === "POST") {
+            console.log("POST received");
+        }
+    </script>
 
     <!-- App JS -->
     <script type="module" src="script.js" defer></script>

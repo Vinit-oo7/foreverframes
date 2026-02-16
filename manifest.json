@@ -14,18 +14,18 @@
   "prefer_related_applications": false,
 
   "share_target": {
-    "action": "/",
-    "method": "POST",
-    "enctype": "multipart/form-data",
-    "params": {
-      "files": [
-        {
-          "name": "media",
-          "accept": ["image/*", "video/*"]
-        }
-      ]
-    }
-  },
+  "action": "/",
+  "method": "POST",
+  "enctype": "multipart/form-data",
+  "params": {
+    "files": [
+      {
+        "name": "media",
+        "accept": ["image/*", "video/*"]
+      }
+    ]
+  }
+},
 
   "icons": [
     {

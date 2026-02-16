@@ -1,3 +1,28 @@
+window.addEventListener("DOMContentLoaded", async () => {
+  if (document.referrer === "" && window.performance.navigation.type === 0) {
+    console.log("Normal load");
+  }
+});
+window.addEventListener("load", async () => {
+  if (window.location.search.includes("share-target")) return;
+
+  if (navigator.canShare) {
+    const params = new URLSearchParams(window.location.search);
+  }
+});
+
+if (window.location.pathname === "/") {
+  window.addEventListener("load", async () => {
+    try {
+      const navigation = performance.getEntriesByType("navigation")[0];
+      if (navigation && navigation.type === "navigate") {
+        // Share triggered load
+        console.log("App opened via share");
+      }
+    } catch (e) {}
+  });
+}
+
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -105,6 +130,10 @@ window.addEventListener("DOMContentLoaded", () => {
   /* ======================================================
   HELPERS
   ====================================================== */
+
+  if (window.location.pathname === "/") {
+    const formData = new FormData(document.forms[0] || undefined);
+  }
 
   function showToast(msg) {
     toast.textContent = msg;
