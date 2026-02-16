@@ -39,37 +39,23 @@ self.addEventListener("activate", (event) => {
 ============================ */
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  const url = new URL(request.url);
 
-  // 🟣 Handle Share Target POST
-  if (request.method === "POST" && url.pathname === "/share-target") {
+  // 🟣 Handle share POST to root
+  if (request.method === "POST" && request.mode === "navigate") {
     event.respondWith(handleShareTarget(request));
     return;
   }
 
-  // 🟢 Handle ALL page navigations (VERY IMPORTANT)
+  // 🟢 Handle navigations
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).catch(() => caches.match("/index.html")));
     return;
   }
 
-  // 🔵 Cache-first for static files
-  if (request.method === "GET") {
-    event.respondWith(
-      caches.match(request).then((response) => {
-        return (
-          response ||
-          fetch(request).then((res) => {
-            if (res.ok) {
-              const copy = res.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-            }
-            return res;
-          })
-        );
-      }),
-    );
-  }
+  // 🔵 Static assets
+  event.respondWith(
+    caches.match(request).then((response) => response || fetch(request)),
+  );
 });
 
 /* ============================
