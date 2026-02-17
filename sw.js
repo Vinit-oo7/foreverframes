@@ -10,7 +10,7 @@ const CACHE_NAME = "memorybox-v7-publicurl";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
-  "/script.js",
+  "/new_script.js",
   "/manifest.json",
   "/logo.svg",
 ];
