@@ -1,3 +1,11 @@
+// ✅ Attach ASAP so share-target messages aren't missed
+if ("serviceWorker" in navigator && navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type !== "SHARED_FILES") return;
+    window.__MB_SHARED_FILES__ = event.data.files || [];
+  });
+}
+
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -1138,4 +1146,10 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     }
   })();
-});
+  // ✅ Consume any share files captured early
+  if (window.__MB_SHARED_FILES__?.length) {
+    const files = window.__MB_SHARED_FILES__;
+    window.__MB_SHARED_FILES__ = [];
+    handleFiles(files);
+  }
+};);

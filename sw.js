@@ -81,25 +81,25 @@ self.addEventListener("fetch", (event) => {
 
 async function handleShareTarget(request) {
   const formData = await request.formData();
-  const files = formData.getAll("media"); // must match manifest params.files[].name
+  const files = formData.getAll("media");
 
   const clientsList = await self.clients.matchAll({
     type: "window",
     includeUncontrolled: true,
   });
 
-  // Prefer visible window
-  let client = clientsList.find((c) => c.visibilityState === "visible");
+  // Prefer any existing client (visible first)
+  let client =
+    clientsList.find((c) => c.visibilityState === "visible") || clientsList[0];
 
-  // If none, open the app
   if (!client) {
     client = await self.clients.openWindow("/?source=pwa&share=1");
+  } else {
+    client.focus?.();
   }
 
-  // Send files to app
   client?.postMessage({ type: "SHARED_FILES", files });
 
-  // Redirect UX
   return Response.redirect("/?source=pwa&share=1", 303);
 }
 
