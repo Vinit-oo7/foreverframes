@@ -1152,4 +1152,4 @@ window.addEventListener("DOMContentLoaded", () => {
     window.__MB_SHARED_FILES__ = [];
     handleFiles(files);
   }
-};);
+});
