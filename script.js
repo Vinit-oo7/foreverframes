@@ -1,8 +1,20 @@
-window.addEventListener("DOMContentLoaded", async () => {
-  if (document.referrer === "" && window.performance.navigation.type === 0) {
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "PING" && event.ports?.[0]) {
+      event.ports[0].postMessage("READY");
+    }
+  });
+} else {
+  console.warn("Service Worker not supported / not available in this context.");
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const nav = performance.getEntriesByType?.("navigation")?.[0];
+  if (document.referrer === "" && (!nav || nav.type === "navigate")) {
     console.log("Normal load");
   }
 });
+
 window.addEventListener("load", async () => {
   if (window.location.search.includes("share-target")) return;
 
@@ -34,28 +46,52 @@ window.addEventListener("DOMContentLoaded", () => {
     "https://dhjgqadhjxvruyvkxdss.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoamdxYWRoanh2cnV5dmt4ZHNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNzg4ODEsImV4cCI6MjA2OTk1NDg4MX0.t2fy8PixY3Od508Pzv-KGZbai0IotRqt9FOFPPkiQk0",
   );
-  navigator.serviceWorker.addEventListener("message", async (event) => {
-    if (event.data?.type === "SHARED_FILES") {
-      if (!supabase.auth.getUser) return;
+  // ✅ Only attach SW message listener if SW is available
+  if ("serviceWorker" in navigator && navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener("message", async (event) => {
+      if (event.data?.type === "SHARED_FILES") {
+        // Get user
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (error) console.warn("auth.getUser error:", error);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        if (!user) {
+          alert("Please login to upload shared files.");
+          return;
+        }
 
-      if (!user) {
-        alert("Please login to upload shared files.");
-        return;
+        await handleFiles(event.data.files);
+
+        // Notify SW (only if controlled)
+        navigator.serviceWorker.addEventListener("message", async (event) => {
+          if (event.data?.type === "SHARED_FILES") {
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+
+            if (!user) {
+              pendingSharedFiles = event.data.files;
+              showToast("Login first — shared files are ready ✅");
+              return;
+            }
+
+            await handleFiles(event.data.files);
+
+            navigator.serviceWorker.controller?.postMessage({
+              type: "SHOW_NOTIFICATION",
+              message: "Memory uploaded successfully 🚀",
+            });
+          }
+        });
       }
-
-      await handleFiles(event.data.files);
-
-      // Notify service worker
-      navigator.serviceWorker.controller?.postMessage({
-        type: "SHOW_NOTIFICATION",
-        message: "Memory uploaded successfully 🚀",
-      });
-    }
-  });
+    });
+  } else {
+    console.warn(
+      "⚠️ Service Worker not available in this context (no SW message handling).",
+    );
+  }
 
   /* ======================================================
      ELEMENTS
@@ -99,6 +135,41 @@ window.addEventListener("DOMContentLoaded", () => {
   const shareSelectedBtn = document.getElementById("shareSelected");
   const downloadSelectedBtn = document.getElementById("downloadSelected");
   const cancelBtn = document.getElementById("cancelSelection");
+  const pinGate = document.getElementById("pinGate");
+  const pinTitle = document.getElementById("pinTitle");
+  const pinHint = document.getElementById("pinHint");
+  const pinInput = document.getElementById("pinInput");
+  const pinSubmit = document.getElementById("pinSubmit");
+  const pinReset = document.getElementById("pinReset");
+
+  const deleteBtn = document.getElementById("deleteBtn");
+  // ===== PIN Gate Modal (Promise-based) =====
+  const pinGateModal = document.getElementById("pinGateModal");
+  const pinGateTitle = document.getElementById("pinGateTitle");
+  const pinGateDesc = document.getElementById("pinGateDesc");
+  const pinGateInput = document.getElementById("pinGateInput");
+  const pinGateError = document.getElementById("pinGateError");
+  const pinGateConfirm = document.getElementById("pinGateConfirm");
+  const pinGateCancel = document.getElementById("pinGateCancel");
+  const pinGateClose = document.getElementById("pinGateClose");
+  const pinGateToggle = document.getElementById("pinGateToggle");
+  // ===== Reset PIN (Email OTP) UI =====
+  const resetOtpModal = document.getElementById("resetOtpModal");
+  const resetOtpEmail = document.getElementById("resetOtpEmail");
+  const resetOtpCode = document.getElementById("resetOtpCode");
+  const resetOtpError = document.getElementById("resetOtpError");
+
+  const resetOtpStepSend = document.getElementById("resetOtpStepSend");
+  const resetOtpStepVerify = document.getElementById("resetOtpStepVerify");
+
+  const resetOtpSendBtn = document.getElementById("resetOtpSendBtn");
+  const resetOtpVerifyBtn = document.getElementById("resetOtpVerifyBtn");
+  const resetOtpResend = document.getElementById("resetOtpResend");
+
+  const resetOtpClose = document.getElementById("resetOtpClose");
+  const resetOtpCancel1 = document.getElementById("resetOtpCancel1");
+  const resetOtpBack = document.getElementById("resetOtpBack");
+
   const signedUrlCache = new Map();
 
   /* ======================================================
@@ -113,8 +184,11 @@ window.addEventListener("DOMContentLoaded", () => {
   let privacyEnabled = true; // 🔐 DEFAULT ON
   let currentFilter = "all";
   let selectionMode = false;
+  let galleryUnlocked = false;
+  let currentUserId = null;
   let selectedItems = new Set();
   let pressTimer;
+  let pendingSharedFiles = null; // ✅ for share-target when user isn't logged in yet
 
   // Disable right click
   document.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -130,6 +204,228 @@ window.addEventListener("DOMContentLoaded", () => {
   /* ======================================================
   HELPERS
   ====================================================== */
+  function openResetOtpModal(email) {
+    resetOtpEmail.value = email || "";
+    resetOtpCode.value = "";
+    resetOtpError.classList.add("hidden");
+    resetOtpError.textContent = "";
+
+    resetOtpStepSend.classList.remove("hidden");
+    resetOtpStepVerify.classList.add("hidden");
+
+    resetOtpModal.classList.remove("hidden");
+    resetOtpModal.classList.add("flex");
+  }
+
+  function closeResetOtpModal() {
+    resetOtpModal.classList.add("hidden");
+    resetOtpModal.classList.remove("flex");
+  }
+
+  function showResetOtpError(msg) {
+    resetOtpError.textContent = msg;
+    resetOtpError.classList.remove("hidden");
+  }
+  resetOtpClose?.addEventListener("click", closeResetOtpModal);
+  resetOtpCancel1?.addEventListener("click", closeResetOtpModal);
+  resetOtpModal?.addEventListener("click", (e) => {
+    if (e.target === resetOtpModal) closeResetOtpModal();
+  });
+  resetOtpBack?.addEventListener("click", () => {
+    resetOtpError.classList.add("hidden");
+    resetOtpStepVerify.classList.add("hidden");
+    resetOtpStepSend.classList.remove("hidden");
+  });
+  async function sendResetOtp(email) {
+    // shouldCreateUser:false prevents accidental new accounts
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+
+    if (error) throw error;
+
+    resetOtpStepSend.classList.add("hidden");
+    resetOtpStepVerify.classList.remove("hidden");
+    resetOtpCode.value = "";
+    resetOtpCode.focus();
+  }
+  async function verifyResetOtpAndReset(email, code) {
+    const token = (code || "").trim();
+
+    if (!/^\d{6}$/.test(token)) {
+      showResetOtpError("Enter the 6-digit code.");
+      return;
+    }
+
+    const { error: verifyErr } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    if (verifyErr) {
+      showResetOtpError("Invalid or expired code. Try again.");
+      return;
+    }
+
+    // ✅ OTP verified — now reset PIN in DB
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      showResetOtpError("Session missing. Please login again.");
+      return;
+    }
+
+    const { error: delErr } = await supabase
+      .from("user_pins")
+      .delete()
+      .eq("user_id", user.id);
+    if (delErr) {
+      console.error("PIN reset failed:", delErr);
+      showResetOtpError("Reset failed: " + delErr.message);
+      return;
+    }
+
+    closeResetOtpModal();
+    showToast("✅ PIN reset. Set a new PIN.");
+    await requirePinAndUnlock(user);
+  }
+  pinReset?.addEventListener("click", async (e) => {
+    e.preventDefault();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.email) return showToast("Please login first.");
+
+    openResetOtpModal(user.email);
+  });
+  resetOtpSendBtn?.addEventListener("click", async () => {
+    try {
+      resetOtpSendBtn.disabled = true;
+      await sendResetOtp(resetOtpEmail.value);
+      showToast("📩 Code sent to your email");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Failed to send code");
+    } finally {
+      resetOtpSendBtn.disabled = false;
+    }
+  });
+
+  resetOtpResend?.addEventListener("click", async () => {
+    try {
+      await sendResetOtp(resetOtpEmail.value);
+      showToast("📩 Code re-sent");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Failed to resend");
+    }
+  });
+
+  resetOtpVerifyBtn?.addEventListener("click", async () => {
+    await verifyResetOtpAndReset(resetOtpEmail.value, resetOtpCode.value);
+  });
+
+  function openPinGateModal({
+    title = "Enter PIN",
+    desc = "",
+    confirmText = "Confirm",
+  } = {}) {
+    return new Promise((resolve) => {
+      // ✅ ADD THIS GUARD (prevents pinGateInput null crash)
+      if (
+        !pinGateModal ||
+        !pinGateTitle ||
+        !pinGateDesc ||
+        !pinGateConfirm ||
+        !pinGateCancel ||
+        !pinGateClose ||
+        !pinGateToggle ||
+        !pinGateError ||
+        !pinGateInput
+      ) {
+        console.error(
+          "PIN Gate Modal elements missing. Fix IDs in index.html.",
+        );
+        showToast("UI error: PIN modal missing");
+        return resolve(null);
+      }
+
+      // Reset UI
+      pinGateTitle.textContent = title;
+      pinGateDesc.textContent = desc;
+      pinGateConfirm.textContent = confirmText;
+      pinGateInput.value = "";
+      pinGateInput.type = "password";
+      pinGateToggle.textContent = "👁️";
+      pinGateError.classList.add("hidden");
+      pinGateError.textContent = "";
+
+      // Show
+      pinGateModal.classList.remove("hidden");
+      pinGateModal.classList.add("flex");
+      setTimeout(() => pinGateInput.focus(), 50);
+
+      let done = false;
+      const finish = (value) => {
+        if (done) return;
+        done = true;
+
+        pinGateModal.classList.add("hidden");
+        pinGateModal.classList.remove("flex");
+
+        // cleanup
+        pinGateConfirm.onclick = null;
+        pinGateCancel.onclick = null;
+        pinGateClose.onclick = null;
+        pinGateModal.onclick = null;
+        document.removeEventListener("keydown", onKeyDown);
+
+        resolve(value);
+      };
+
+      const onKeyDown = (e) => {
+        if (e.key === "Escape") finish(null);
+        if (e.key === "Enter") pinGateConfirm.click();
+      };
+      document.addEventListener("keydown", onKeyDown);
+
+      pinGateToggle.onclick = () => {
+        const isPwd = pinGateInput.type === "password";
+        pinGateInput.type = isPwd ? "text" : "password";
+        pinGateToggle.textContent = isPwd ? "🙈" : "👁️";
+      };
+
+      pinGateConfirm.onclick = () => finish(pinGateInput.value.trim());
+      pinGateCancel.onclick = () => finish(null);
+      pinGateClose.onclick = () => finish(null);
+
+      // click outside closes
+      pinGateModal.onclick = (e) => {
+        if (e.target === pinGateModal) finish(null);
+      };
+    });
+  }
+
+  function pinGateSetError(msg) {
+    pinGateError.textContent = msg;
+    pinGateError.classList.remove("hidden");
+  }
+
+  function showPinGate(show) {
+    if (!pinGate) return;
+
+    if (show) {
+      pinGate.classList.remove("hidden");
+      pinGate.style.display = "flex";
+    } else {
+      pinGate.classList.add("hidden");
+      pinGate.style.display = "none";
+    }
+  }
 
   if (window.location.pathname === "/") {
     const formData = new FormData(document.forms[0] || undefined);
@@ -193,6 +489,113 @@ window.addEventListener("DOMContentLoaded", () => {
       behavior: "smooth",
     });
   });
+
+  async function sha256(text) {
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return [...new Uint8Array(buf)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  function reversePin(pin) {
+    return String(pin).split("").reverse().join("");
+  }
+
+  function normalizePin(raw) {
+    return String(raw || "")
+      .trim()
+      .replace(/\s+/g, "");
+  }
+
+  /* =====================================================
+Unlock gallery
+=========================================================*/
+  async function getUserPins(userId) {
+    const { data, error } = await supabase
+      .from("user_pins")
+      .select("view_pin_hash, delete_pin_hash")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data; // null if not set
+  }
+
+  async function setUserPins(userId, viewPin) {
+    const viewHash = await sha256(viewPin);
+    const delHash = await sha256(reversePin(viewPin));
+
+    const { error } = await supabase.from("user_pins").upsert({
+      user_id: userId,
+      view_pin_hash: viewHash,
+      delete_pin_hash: delHash,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) throw error;
+  }
+
+  async function requirePinAndUnlock(user) {
+    galleryUnlocked = false;
+
+    const pins = await getUserPins(user.id);
+
+    showPinGate(true);
+    pinInput.value = "";
+
+    // First-time setup (no row yet)
+    if (!pins) {
+      pinTitle.textContent = "Create PIN";
+      pinHint.textContent =
+        "Set a 4-digit PIN to view memories (delete PIN will be its reverse).";
+      pinSubmit.textContent = "Set PIN";
+
+      pinSubmit.onclick = async () => {
+        const pin = normalizePin(pinInput.value);
+        if (!/^\d{4}$/.test(pin)) return showToast("Enter exactly 4 digits");
+
+        await setUserPins(user.id, pin);
+
+        showToast("✅ PIN set & synced");
+        showPinGate(false);
+        galleryUnlocked = true;
+        await loadGallery();
+      };
+
+      // Optional: reset just deletes row
+      pinReset?.addEventListener("click", async (e) => {
+        e.preventDefault();
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.email) return showToast("Please login first.");
+
+        openResetOtpModal(user.email);
+      });
+
+      return;
+    }
+
+    // Normal unlock
+    pinTitle.textContent = "Enter PIN";
+    pinHint.textContent = "Enter your 4-digit PIN to view memories.";
+    pinSubmit.textContent = "Unlock";
+
+    pinSubmit.onclick = async () => {
+      const pin = normalizePin(pinInput.value);
+      if (!/^\d{4}$/.test(pin)) return showToast("Enter exactly 4 digits");
+
+      const h = await sha256(pin);
+      if (h !== pins.view_pin_hash) return showToast("❌ Wrong PIN");
+
+      showToast("🔓 Unlocked");
+      showPinGate(false);
+      galleryUnlocked = true;
+      await loadGallery();
+    };
+  }
 
   /* ======================================================
      AUTH
@@ -342,6 +745,7 @@ window.addEventListener("DOMContentLoaded", () => {
   ====================================================== */
 
   async function loadGallery() {
+    if (!galleryUnlocked) return;
     gallery.innerHTML = "";
     mediaList = [];
 
@@ -669,6 +1073,46 @@ window.addEventListener("DOMContentLoaded", () => {
     if (e.key === "ArrowLeft") prevBtn.click();
     if (e.key === "ArrowRight") nextBtn.click();
   });
+  deleteBtn?.addEventListener("click", async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return showToast("Please login");
+
+    const pins = await getUserPins(user.id);
+    if (!pins) return showToast("PIN not set");
+
+    const enteredRaw = await openPinGateModal({
+      title: "Delete memory",
+      desc: "Enter your DELETE PIN (reverse of your view PIN).",
+      confirmText: "Delete",
+    });
+
+    if (enteredRaw === null) return; // user cancelled
+
+    const entered = normalizePin(enteredRaw);
+    if (!/^\d{4}$/.test(entered)) {
+      pinGateSetError("Enter exactly 4 digits.");
+      // reopen and stop
+      return;
+    }
+
+    if (!/^\d{4}$/.test(entered)) return showToast("Enter exactly 4 digits");
+
+    const enteredHash = await sha256(entered);
+    if (enteredHash !== pins.delete_pin_hash)
+      return showToast("❌ Wrong delete PIN");
+
+    const item = mediaList[currentIndex];
+    if (!item?.name) return showToast("❌ Missing file");
+
+    const path = `${user.id}/${item.name}`;
+    const { error } = await supabase.storage.from("memories").remove([path]);
+    if (error) return showToast("❌ Delete failed");
+
+    signedUrlCache.delete(item.name);
+    showToast("🗑 Deleted");
+    closeModal();
+    await loadGallery();
+  });
 
   /* ======================================================
      SHARING
@@ -739,7 +1183,16 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     setPrivacy(true); // 🔐 default
-    await loadGallery();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) await requirePinAndUnlock(user);
+    // ✅ If user shared files into app before logging in, upload now
+    if (pendingSharedFiles?.length) {
+      const files = pendingSharedFiles;
+      pendingSharedFiles = null;
+      await handleFiles(files);
+    }
   }
 
   supabase.auth.getUser().then(({ data: { user } }) => {

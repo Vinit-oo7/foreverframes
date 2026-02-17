@@ -544,8 +544,9 @@
 
     <!-- TOAST -->
     <div id="toast"
-        class="fixed top-4 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity duration-300 z-50">
+        class="fixed top-4 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity duration-300 z-[200005]">
     </div>
+
 
     <!-- AUTH -->
     <section id="authSection" class="flex flex-col items-center justify-center min-h-screen px-4">
@@ -677,6 +678,12 @@
                 📤 Share
             </button>
 
+            <button id="deleteBtn"
+                class="px-4 py-2 rounded-xl bg-red-600/90 text-white text-sm hover:bg-red-700 transition">
+                🗑 Delete
+            </button>
+
+
         </div>
 
         <div id="mediaWrapper" class="media-wrapper">
@@ -684,7 +691,130 @@
             <video id="modalVideo" draggable="false" class="modal-media" controls></video>
         </div>
     </div>
+    <!-- PIN GATE -->
+    <div id="pinGate" class="fixed inset-0 hidden z-[100001] items-center justify-center px-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-md"></div>
 
+        <div
+            class="relative w-full max-w-md rounded-2xl bg-white/20 backdrop-blur-xl border border-white/20 p-6 shadow-2xl">
+            <h2 id="pinTitle" class="text-white text-2xl font-bold text-center">Enter PIN</h2>
+            <p id="pinHint" class="text-white/80 text-sm text-center mt-2">
+                Enter your 4-digit PIN to view memories.
+            </p>
+
+            <input id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocorrect="off"
+                autocapitalize="off" spellcheck="false" placeholder="••••"
+                class="mt-5 w-full text-center tracking-[0.5em] text-xl px-4 py-3 rounded-xl bg-white/70 border border-white/40 focus:outline-none focus:ring-2 focus:ring-pink-400" />
+
+            <button id="pinSubmit"
+                class="mt-4 w-full bg-pink-500 hover:bg-pink-600 active:scale-95 text-white py-3 rounded-xl font-semibold transition shadow-md">
+                Unlock
+            </button>
+
+            <button id="pinReset" class="mt-3 w-full text-white/90 hover:text-white text-sm underline" type="button">
+                Reset PIN (requires login)
+            </button>
+        </div>
+    </div>
+    <!-- PIN Modal (for Delete / Reset confirmations) -->
+    <div id="pinGateModal"
+        class="fixed inset-0 hidden items-center justify-center bg-black/60 backdrop-blur-sm z-[200000] p-4">
+        <div
+            class="w-full max-w-md bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-2xl p-6 text-gray-900">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h2 id="pinGateTitle" class="text-xl font-bold text-pink-700">Enter PIN</h2>
+                    <p id="pinGateDesc" class="text-sm text-gray-700 mt-1">This action needs confirmation.</p>
+                </div>
+                <button id="pinGateClose"
+                    class="px-3 py-1 rounded-lg hover:bg-black/5 text-gray-700 transition">✕</button>
+            </div>
+
+            <div class="mt-4">
+                <label class="text-sm text-gray-700">PIN</label>
+                <div class="relative mt-2">
+                    <input id="pinGateInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"
+                        autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="••••"
+                        class="w-full px-4 py-3 pr-12 rounded-xl border border-pink-300 bg-white/70 focus:outline-none focus:ring-2 focus:ring-pink-400"
+                        placeholder="4-digit PIN" />
+                    <button id="pinGateToggle" type="button"
+                        class="absolute inset-y-0 right-2 my-auto h-9 px-3 rounded-lg text-pink-700/80 hover:bg-pink-100 transition">👁️</button>
+                </div>
+
+                <p id="pinGateError" class="text-sm text-red-600 mt-2 hidden"></p>
+
+                <div class="mt-5 flex gap-3 justify-end">
+                    <button id="pinGateCancel" type="button"
+                        class="px-4 py-2 rounded-xl border border-gray-300 bg-white/60 hover:bg-white transition">
+                        Cancel
+                    </button>
+                    <button id="pinGateConfirm" type="button"
+                        class="px-4 py-2 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold transition">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Reset PIN via Email OTP -->
+    <div id="resetOtpModal"
+        class="fixed inset-0 hidden items-center justify-center bg-black/60 backdrop-blur-sm z-[200000] p-4">
+        <div
+            class="w-full max-w-md bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-2xl p-6 text-gray-900">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-xl font-bold text-pink-700">Reset PIN</h2>
+                    <p id="resetOtpDesc" class="text-sm text-gray-700 mt-1">
+                        We’ll send a verification code to your email.
+                    </p>
+                </div>
+                <button id="resetOtpClose"
+                    class="px-3 py-1 rounded-lg hover:bg-black/5 text-gray-700 transition">✕</button>
+            </div>
+
+            <!-- Step 1: Send OTP -->
+            <div id="resetOtpStepSend" class="mt-5">
+                <label class="text-sm text-gray-700">Email</label>
+                <input id="resetOtpEmail" type="email" readonly
+                    class="w-full mt-2 px-4 py-3 rounded-xl border border-pink-300 bg-white/70" />
+
+                <button id="resetOtpSendBtn" type="button"
+                    class="w-full mt-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white py-3 rounded-xl font-semibold transition shadow-md">
+                    Send code
+                </button>
+
+                <button id="resetOtpCancel1" type="button"
+                    class="w-full mt-3 px-4 py-3 rounded-xl border border-gray-300 bg-white/60 hover:bg-white transition">
+                    Cancel
+                </button>
+            </div>
+
+            <!-- Step 2: Verify OTP -->
+            <div id="resetOtpStepVerify" class="mt-5 hidden">
+                <label class="text-sm text-gray-700">Enter code</label>
+                <input id="resetOtpCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+                    class="w-full mt-2 px-4 py-3 rounded-xl border border-pink-300 bg-white/70 focus:outline-none focus:ring-2 focus:ring-pink-400"
+                    placeholder="6-digit code" />
+
+                <p id="resetOtpError" class="text-sm text-red-600 mt-2 hidden"></p>
+
+                <div class="mt-4 flex gap-3">
+                    <button id="resetOtpBack" type="button"
+                        class="flex-1 px-4 py-3 rounded-xl border border-gray-300 bg-white/60 hover:bg-white transition">
+                        Back
+                    </button>
+                    <button id="resetOtpVerifyBtn" type="button"
+                        class="flex-1 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white py-3 rounded-xl font-semibold transition shadow-md">
+                        Verify & Reset
+                    </button>
+                </div>
+
+                <button id="resetOtpResend" type="button" class="w-full mt-3 text-sm text-pink-700 hover:underline">
+                    Resend code
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

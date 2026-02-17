@@ -1,6 +1,11 @@
-const CACHE_NAME = "memorybox-v6.0.1";
+/* ==========================================================
+   MEMORYBOX SERVICE WORKER (HARDENED)
+   Share Target + Cache (Network First)
+========================================================== */
 
-const STATIC_CACHE = [
+const CACHE_NAME = "memorybox-v6.0.3";
+
+const STATIC_ASSETS = [
   "/",
   "/index.html",
   "/script.js",
@@ -14,7 +19,7 @@ const STATIC_CACHE = [
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_CACHE)),
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
   );
 });
 
@@ -27,7 +32,7 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.map((key) => key !== CACHE_NAME && caches.delete(key)),
+          keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : null)),
         ),
       ),
   );
@@ -36,78 +41,83 @@ self.addEventListener("activate", (event) => {
 
 /* ============================
    FETCH
+   - Share Target POST handler
+   - Network-first cache for GET
 ============================ */
 self.addEventListener("fetch", (event) => {
-  const { request } = event;
+  const req = event.request;
+  const url = new URL(req.url);
 
-  // 🟣 Handle share POST to root
-  if (request.method === "POST" && request.mode === "navigate") {
-    event.respondWith(handleShareTarget(request));
+  // ✅ SHARE TARGET (Other Apps → MemoryBox)
+  if (req.method === "POST" && url.pathname === "/share-target") {
+    event.respondWith(handleShareTarget(req));
     return;
   }
 
-  // 🟢 Handle navigations
-  if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match("/")));
+  // Only cache GET
+  if (req.method !== "GET") return;
+
+  // Never touch unsupported schemes
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
+
+  // Only cache same-origin
+  if (url.origin !== self.location.origin) {
+    event.respondWith(fetch(req).catch(() => caches.match(req)));
     return;
   }
 
-  // 🔵 Static assets
+  // Network-first
   event.respondWith(
-    caches.match(request).then((response) => response || fetch(request)),
+    fetch(req)
+      .then((res) => {
+        if (!res || res.status !== 200 || res.type !== "basic") return res;
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        return res;
+      })
+      .catch(() => caches.match(req)),
   );
 });
 
-/* ============================
-   SHARE TARGET HANDLER
-============================ */
 async function handleShareTarget(request) {
   const formData = await request.formData();
+
+  // Manifest uses params.files[].name = "media"
   const files = formData.getAll("media");
 
-  const allClients = await self.clients.matchAll({
+  const clientsList = await self.clients.matchAll({
     type: "window",
     includeUncontrolled: true,
   });
 
-  let client = allClients.find((c) => c.visibilityState === "visible");
+  // Prefer visible window
+  let client = clientsList.find((c) => c.visibilityState === "visible");
 
+  // If none, open the app
   if (!client) {
-    client = await self.clients.openWindow("/");
+    client = await self.clients.openWindow("/?source=pwa");
   }
 
-  client.postMessage({
-    type: "SHARED_FILES",
-    files,
-  });
+  // Send files to app
+  client?.postMessage({ type: "SHARED_FILES", files });
 
-  return Response.redirect("/", 303);
+  // Redirect to app (important for Android UX)
+  return Response.redirect("/?source=pwa", 303);
 }
 
 /* ============================
-   NOTIFICATIONS
+   NOTIFICATIONS + PING
 ============================ */
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SHOW_NOTIFICATION") {
-    self.registration.showNotification("📦 Memory Saved", {
+    self.registration.showNotification("MemoryBox", {
       body: event.data.message,
       icon: "/logo.svg",
       badge: "/logo.svg",
-      vibrate: [300, 200, 300, 200, 500],
-      requireInteraction: true,
-      renotify: true,
-      tag: "memorybox-upload",
-      actions: [
-        {
-          action: "open",
-          title: "View Memory",
-        },
-      ],
     });
   }
-});
 
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  event.waitUntil(clients.openWindow("/"));
+  if (event.data?.type === "PING") {
+    if (event.ports && event.ports[0]) event.ports[0].postMessage("READY");
+  }
 });

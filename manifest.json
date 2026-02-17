@@ -1,44 +1,71 @@
 {
+  "id": "/?source=pwa",
   "name": "MemoryBox",
   "short_name": "MemoryBox",
-  "description": "Privately store and relive your memories.",
-  "start_url": "/",
+  "description": "Forever Frames — Upload and preserve your memories instantly.",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "window-controls-overlay"],
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
   "background_color": "#ffc8dd",
   "theme_color": "#ffc8dd",
-  "orientation": "portrait",
+
   "lang": "en",
-  "categories": ["photo", "video", "lifestyle"],
-  "prefer_related_applications": false,
+  "dir": "ltr",
+
+  "categories": ["photography", "productivity", "lifestyle"],
+
+  "screenshots": [],
+
+  "shortcuts": [
+    {
+      "name": "Upload Memory",
+      "short_name": "Upload",
+      "url": "/?action=upload"
+    }
+  ],
 
   "share_target": {
-  "action": "/",
-  "method": "POST",
-  "enctype": "multipart/form-data",
-  "params": {
-    "files": [
-      {
-        "name": "media",
-        "accept": ["image/*", "video/*"]
-      }
-    ]
-  }
-},
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "media",
+          "accept": ["image/*", "video/*"]
+        }
+      ]
+    }
+  },
 
   "icons": [
     {
       "src": "/logo.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     },
     {
       "src": "/logo.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
-  ]
+  ],
+
+  "prefer_related_applications": false
 }
