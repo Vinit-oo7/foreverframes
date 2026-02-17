@@ -10,14 +10,9 @@
   "orientation": "portrait",
   "background_color": "#ffc8dd",
   "theme_color": "#ffc8dd",
-
   "lang": "en",
   "dir": "ltr",
-
   "categories": ["photography", "productivity", "lifestyle"],
-
-  "screenshots": [],
-
   "shortcuts": [
     {
       "name": "Upload Memory",
@@ -25,7 +20,6 @@
       "url": "/?action=upload"
     }
   ],
-
   "share_target": {
     "action": "/share-target",
     "method": "POST",
@@ -39,7 +33,6 @@
       ]
     }
   },
-
   "icons": [
     {
       "src": "/logo.svg",
@@ -66,6 +59,5 @@
       "purpose": "maskable"
     }
   ],
-
   "prefer_related_applications": false
 }

@@ -1,9 +1,11 @@
 /* ==========================================================
-   MEMORYBOX SERVICE WORKER (HARDENED)
-   Share Target + Cache (Network First)
+   MEMORYBOX SERVICE WORKER (SHARE TARGET + SAFE CACHING)
+   - Receives native shares (POST /share-target)
+   - Opens/app-focuses MemoryBox
+   - Forwards shared File objects to the page via postMessage
 ========================================================== */
 
-const CACHE_NAME = "memorybox-v6.0.3";
+const CACHE_NAME = "memorybox-v7-publicurl";
 
 const STATIC_ASSETS = [
   "/",
@@ -32,7 +34,7 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : null)),
+          keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null)),
         ),
       ),
   );
@@ -41,8 +43,6 @@ self.addEventListener("activate", (event) => {
 
 /* ============================
    FETCH
-   - Share Target POST handler
-   - Network-first cache for GET
 ============================ */
 self.addEventListener("fetch", (event) => {
   const req = event.request;
@@ -60,13 +60,13 @@ self.addEventListener("fetch", (event) => {
   // Never touch unsupported schemes
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
 
-  // Only cache same-origin
+  // Cross-origin: just fetch (fallback to cache if any)
   if (url.origin !== self.location.origin) {
     event.respondWith(fetch(req).catch(() => caches.match(req)));
     return;
   }
 
-  // Network-first
+  // Network-first for same-origin
   event.respondWith(
     fetch(req)
       .then((res) => {
@@ -81,9 +81,7 @@ self.addEventListener("fetch", (event) => {
 
 async function handleShareTarget(request) {
   const formData = await request.formData();
-
-  // Manifest uses params.files[].name = "media"
-  const files = formData.getAll("media");
+  const files = formData.getAll("media"); // must match manifest params.files[].name
 
   const clientsList = await self.clients.matchAll({
     type: "window",
@@ -95,14 +93,14 @@ async function handleShareTarget(request) {
 
   // If none, open the app
   if (!client) {
-    client = await self.clients.openWindow("/?source=pwa");
+    client = await self.clients.openWindow("/?source=pwa&share=1");
   }
 
   // Send files to app
   client?.postMessage({ type: "SHARED_FILES", files });
 
-  // Redirect to app (important for Android UX)
-  return Response.redirect("/?source=pwa", 303);
+  // Redirect UX
+  return Response.redirect("/?source=pwa&share=1", 303);
 }
 
 /* ============================
