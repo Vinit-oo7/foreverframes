@@ -135,6 +135,17 @@ window.addEventListener("DOMContentLoaded", () => {
   /* ======================================================
      HELPERS
   ====================================================== */
+  async function ensureHeic2Any() {
+    if (window.heic2any) return;
+
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
 
   function showToast(msg) {
     if (!toast) return;
@@ -670,15 +681,26 @@ window.addEventListener("DOMContentLoaded", () => {
       // HEIC → JPEG
       if (file.name.toLowerCase().endsWith(".heic")) {
         try {
-          const blob = await heic2any({
+          await ensureHeic2Any(); // lazy load only when needed
+
+          const result = await heic2any({
             blob: file,
             toType: "image/jpeg",
             quality: 0.9,
           });
-          uploadFile = new File([blob], "converted.jpg", {
+
+          // heic2any can return array or single blob
+          const convertedBlob = Array.isArray(result) ? result[0] : result;
+
+          // preserve original filename
+          const newName = file.name.replace(/\.heic$/i, ".jpg");
+
+          uploadFile = new File([convertedBlob], newName, {
             type: "image/jpeg",
+            lastModified: Date.now(),
           });
-        } catch {
+        } catch (err) {
+          console.error("HEIC conversion error:", err);
           showToast(`❌ HEIC convert failed: ${file.name}`);
           continue;
         }
